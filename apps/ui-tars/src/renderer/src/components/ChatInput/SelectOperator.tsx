@@ -20,7 +20,7 @@ import {
 } from '@renderer/components/ui/dropdown-menu';
 import { useSetting } from '@renderer/hooks/useSetting';
 import { useState } from 'react';
-import { BROWSER_USE, COMPUTERR_USE } from '@renderer/const';
+import { BROWSER_OPERATOR, COMPUTER_OPERATOR } from '@renderer/const';
 import { useStore } from '@renderer/hooks/useStore';
 import { api } from '@renderer/api';
 import { toast } from 'sonner';
@@ -30,8 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@renderer/components/ui/tooltip';
-
-type Operator = 'nutjs' | 'browser';
+import { Operator } from '@main/store/types';
 
 const getOperatorIcon = (type: string) => {
   switch (type) {
@@ -47,11 +46,11 @@ const getOperatorIcon = (type: string) => {
 const getOperatorLabel = (type: string) => {
   switch (type) {
     case 'nutjs':
-      return COMPUTERR_USE;
+      return COMPUTER_OPERATOR;
     case 'browser':
-      return BROWSER_USE;
+      return BROWSER_OPERATOR;
     default:
-      return COMPUTERR_USE;
+      return COMPUTER_OPERATOR;
   }
 };
 
@@ -66,25 +65,25 @@ export const SelectOperator = () => {
   // Get the current operating mode and automatically
   // switch to computer mode if browser mode is not available
   const currentOperator = browserAvailable
-    ? settings.operator || 'nutjs'
-    : 'nutjs';
+    ? settings.operator || Operator.LocalComputer
+    : Operator.LocalComputer;
 
   // If the current setting is browser but the browser
-  // is not available, automatically switched to Computer Use mode.
+  // is not available, automatically switched to COMPUTER OPERATOR mode.
   useEffect(() => {
-    if (settings.operator === 'browser' && !browserAvailable) {
+    if (settings.operator === Operator.LocalBrowser && !browserAvailable) {
       updateSetting({
         ...settings,
-        operator: 'nutjs',
+        operator: Operator.LocalComputer,
       });
-      toast.info('Automatically switched to Computer Use mode', {
+      toast.info(`Automatically switched to ${COMPUTER_OPERATOR} mode`, {
         description: 'Browser mode is not available',
       });
     }
   }, [browserAvailable, settings, updateSetting]);
 
   const handleSelect = (type: Operator) => {
-    if (type === 'browser' && !browserAvailable) {
+    if (type === Operator.LocalBrowser && !browserAvailable) {
       return;
     }
 
@@ -130,21 +129,27 @@ export const SelectOperator = () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuItem onClick={() => handleSelect('nutjs')}>
+          <DropdownMenuItem
+            onClick={() => handleSelect(Operator.LocalComputer)}
+          >
             <Monitor className="h-4 w-4 mr-2" />
-            Computer Use
-            {currentOperator === 'nutjs' && <Check className="h-4 w-4 ml-2" />}
+            {COMPUTER_OPERATOR}
+            {currentOperator === Operator.LocalComputer && (
+              <Check className="h-4 w-4 ml-2" />
+            )}
           </DropdownMenuItem>
 
           <div className="relative">
             <DropdownMenuItem
-              onClick={() => browserAvailable && handleSelect('browser')}
+              onClick={() =>
+                browserAvailable && handleSelect(Operator.LocalBrowser)
+              }
               disabled={!browserAvailable}
               className="flex items-center justify-start"
             >
               <Globe className="h-4 w-4 mr-2" />
-              Browser Use
-              {currentOperator === 'browser' && (
+              {BROWSER_OPERATOR}
+              {currentOperator === Operator.LocalBrowser && (
                 <Check className="h-4 w-4 ml-2" />
               )}
             </DropdownMenuItem>

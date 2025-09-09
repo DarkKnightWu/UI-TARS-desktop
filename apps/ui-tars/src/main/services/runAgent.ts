@@ -5,42 +5,36 @@
 import assert from 'assert';
 
 import { logger } from '@main/logger';
-import { hideWindowBlock } from '@main/window/index';
-import { StatusEnum, UITarsModelVersion } from '@ui-tars/shared/types';
+import { StatusEnum } from '@ui-tars/shared/types';
 import { type ConversationWithSoM } from '@main/shared/types';
 import { GUIAgent, type GUIAgentConfig } from '@ui-tars/sdk';
 import { markClickPosition } from '@main/utils/image';
 import { UTIOService } from '@main/services/utio';
 import { NutJSElectronOperator } from '../agent/operator';
-import { DefaultBrowserOperator } from '@ui-tars/operator-browser';
-import { getSystemPrompt, getSystemPromptV1_5 } from '../agent/prompts';
 import {
-  closeScreenMarker,
-  hideWidgetWindow,
-  hideScreenWaterFlow,
-  showWidgetWindow,
-  showPredictionMarker,
-  showScreenWaterFlow,
-} from '@main/window/ScreenMarker';
+  createRemoteBrowserOperator,
+  RemoteComputerOperator,
+} from '../remote/operators';
+import {
+  DefaultBrowserOperator,
+  RemoteBrowserOperator,
+} from '@ui-tars/operator-browser';
+import { showPredictionMarker } from '@main/window/ScreenMarker';
 import { SettingStore } from '@main/store/setting';
-import { AppState, VLMProviderV2 } from '@main/store/types';
+import { AppState, Operator } from '@main/store/types';
 import { GUIAgentManager } from '../ipcRoutes/agent';
 import { checkBrowserAvailability } from './browserCheck';
-
-const getModelVersion = (
-  provider: VLMProviderV2 | undefined,
-): UITarsModelVersion => {
-  switch (provider) {
-    case VLMProviderV2.ui_tars_1_5:
-      return UITarsModelVersion.V1_5;
-    case VLMProviderV2.ui_tars_1_0:
-      return UITarsModelVersion.V1_0;
-    case VLMProviderV2.doubao_1_5:
-      return UITarsModelVersion.DOUBAO_1_5_15B;
-    default:
-      return UITarsModelVersion.V1_0;
-  }
-};
+import {
+  getModelVersion,
+  getSpByModelVersion,
+  beforeAgentRun,
+  afterAgentRun,
+  getLocalBrowserSearchEngine,
+} from '../utils/agent';
+import { FREE_MODEL_BASE_URL } from '../remote/shared';
+import { getAuthHeader } from '../remote/auth';
+import { ProxyClient } from '../remote/proxyClient';
+import { UITarsModelConfig } from '@ui-tars/sdk/core';
 
 export const runAgent = async (
   setState: (state: AppState) => void,
@@ -53,17 +47,14 @@ export const runAgent = async (
 
   const language = settings.language ?? 'en';
 
-  showWidgetWindow();
-  if (settings.operator === 'nutjs') {
-    showScreenWaterFlow();
-  }
+  logger.info('settings.operator', settings.operator);
 
   const handleData: GUIAgentConfig<NutJSElectronOperator>['onData'] = async ({
     data,
   }) => {
     const lastConv = getState().messages[getState().messages.length - 1];
     const { status, conversations, ...restUserData } = data;
-    logger.info('[status]', status, conversations.length);
+    logger.info('[onGUIAgentData] status', status, conversations.length);
 
     // add SoM to conversations
     const conversationsWithSoM: ConversationWithSoM[] = await Promise.all(
@@ -102,7 +93,7 @@ export const runAgent = async (
       ...rest
     } = conversationsWithSoM?.[conversationsWithSoM.length - 1] || {};
     logger.info(
-      '======data======\n',
+      '[onGUIAgentData] ======data======\n',
       predictionParsed,
       screenshotContext,
       rest,
@@ -111,7 +102,7 @@ export const runAgent = async (
     );
 
     if (
-      settings.operator === 'nutjs' &&
+      settings.operator === Operator.LocalComputer &&
       predictionParsed?.length &&
       screenshotContext?.size &&
       !abortController?.signal?.aborted
@@ -127,50 +118,105 @@ export const runAgent = async (
     });
   };
 
-  const lastStatus = getState().status;
+  let operatorType: 'computer' | 'browser' = 'computer';
+  let operator:
+    | NutJSElectronOperator
+    | DefaultBrowserOperator
+    | RemoteComputerOperator
+    | RemoteBrowserOperator;
 
-  let operator: NutJSElectronOperator | DefaultBrowserOperator;
-  if (settings.operator === 'nutjs') {
-    operator = new NutJSElectronOperator();
-  } else {
-    await checkBrowserAvailability();
-    const { browserAvailable } = getState();
-    if (!browserAvailable) {
+  switch (settings.operator) {
+    case Operator.LocalComputer:
+      operator = new NutJSElectronOperator();
+      operatorType = 'computer';
+      break;
+    case Operator.LocalBrowser:
+      await checkBrowserAvailability();
+      const { browserAvailable } = getState();
+      if (!browserAvailable) {
+        setState({
+          ...getState(),
+          status: StatusEnum.ERROR,
+          errorMsg:
+            'Browser is not available. Please install Chrome and try again.',
+        });
+        return;
+      }
+
+      operator = await DefaultBrowserOperator.getInstance(
+        false,
+        false,
+        false,
+        getState().status === StatusEnum.CALL_USER,
+        getLocalBrowserSearchEngine(settings.searchEngineForBrowser),
+      );
+      operatorType = 'browser';
+      break;
+    case Operator.RemoteComputer:
+      operator = await RemoteComputerOperator.create();
+      operatorType = 'computer';
+      break;
+    case Operator.RemoteBrowser:
+      operator = await createRemoteBrowserOperator();
+      operatorType = 'browser';
+      break;
+    default:
+      break;
+  }
+
+  let modelVersion = getModelVersion(settings.vlmProvider);
+  let modelConfig: UITarsModelConfig = {
+    baseURL: settings.vlmBaseUrl,
+    apiKey: settings.vlmApiKey,
+    model: settings.vlmModelName,
+    useResponsesApi: settings.useResponsesApi,
+  };
+  let modelAuthHdrs: Record<string, string> = {};
+
+  if (
+    settings.operator === Operator.RemoteComputer ||
+    settings.operator === Operator.RemoteBrowser
+  ) {
+    const useResponsesApi = await ProxyClient.getRemoteVLMResponseApiSupport();
+    modelConfig = {
+      baseURL: FREE_MODEL_BASE_URL,
+      apiKey: '',
+      model: '',
+      useResponsesApi,
+    };
+    modelAuthHdrs = await getAuthHeader();
+    modelVersion = await ProxyClient.getRemoteVLMProvider();
+  }
+
+  const systemPrompt = getSpByModelVersion(
+    modelVersion,
+    language,
+    operatorType,
+  );
+
+  const guiAgent = new GUIAgent({
+    model: modelConfig,
+    systemPrompt: systemPrompt,
+    logger,
+    signal: abortController?.signal,
+    operator: operator!,
+    onData: handleData,
+    onError: (params) => {
+      const { error } = params;
+      logger.error('[onGUIAgentError]', settings, error);
       setState({
         ...getState(),
         status: StatusEnum.ERROR,
-        errorMsg:
-          'Browser is not available. Please install Chrome and try again.',
+        errorMsg: JSON.stringify({
+          status: error?.status,
+          message: error?.message,
+          stack: error?.stack,
+        }),
       });
-      return;
-    }
-    operator = await DefaultBrowserOperator.getInstance(
-      false,
-      false,
-      lastStatus === StatusEnum.CALL_USER,
-    );
-  }
-
-  const guiAgent = new GUIAgent({
-    model: {
-      baseURL: settings.vlmBaseUrl,
-      apiKey: settings.vlmApiKey,
-      model: settings.vlmModelName,
-    },
-    systemPrompt:
-      getModelVersion(settings.vlmProvider) === UITarsModelVersion.V1_5
-        ? getSystemPromptV1_5(language, 'normal')
-        : getSystemPrompt(language),
-    logger,
-    signal: abortController?.signal,
-    operator: operator,
-    onData: handleData,
-    onError: ({ error }) => {
-      logger.error('[runAgent error]', settings, error);
     },
     retry: {
       model: {
-        maxRetries: 3,
+        maxRetries: 5,
       },
       screenshot: {
         maxRetries: 5,
@@ -181,32 +227,30 @@ export const runAgent = async (
     },
     maxLoopCount: settings.maxLoopCount,
     loopIntervalInMs: settings.loopIntervalInMs,
-    uiTarsVersion: getModelVersion(settings.vlmProvider),
+    uiTarsVersion: modelVersion,
   });
 
   GUIAgentManager.getInstance().setAgent(guiAgent);
+  UTIOService.getInstance().sendInstruction(instructions);
 
-  await hideWindowBlock(async () => {
-    await UTIOService.getInstance().sendInstruction(instructions);
+  const { sessionHistoryMessages } = getState();
 
-    await guiAgent
-      .run(instructions)
-      .catch((e) => {
-        logger.error('[runAgentLoop error]', e);
-        setState({
-          ...getState(),
-          status: StatusEnum.ERROR,
-          errorMsg: e.message,
-        });
-      })
-      .finally(() => {
-        hideWidgetWindow();
-        if (settings.operator === 'nutjs') {
-          closeScreenMarker();
-          hideScreenWaterFlow();
-        }
+  beforeAgentRun(settings.operator);
+
+  const startTime = Date.now();
+
+  await guiAgent
+    .run(instructions, sessionHistoryMessages, modelAuthHdrs)
+    .catch((e) => {
+      logger.error('[runAgentLoop error]', e);
+      setState({
+        ...getState(),
+        status: StatusEnum.ERROR,
+        errorMsg: e.message,
       });
-  }).catch((e) => {
-    logger.error('[runAgent error hideWindowBlock]', settings, e);
-  });
+    });
+
+  logger.info('[runAgent Totoal cost]: ', (Date.now() - startTime) / 1000, 's');
+
+  afterAgentRun(settings.operator);
 };

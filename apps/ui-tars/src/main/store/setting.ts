@@ -8,7 +8,12 @@ import yaml from 'js-yaml';
 import * as env from '@main/env';
 import { logger } from '@main/logger';
 
-import { LocalStore, VLMProviderV2 } from './types';
+import {
+  LocalStore,
+  SearchEngineForSettings,
+  VLMProviderV2,
+  Operator,
+} from './types';
 import { validatePreset } from './validate';
 import { BrowserWindow } from 'electron';
 
@@ -18,9 +23,11 @@ export const DEFAULT_SETTING: LocalStore = {
   vlmBaseUrl: env.vlmBaseUrl || '',
   vlmApiKey: env.vlmApiKey || '',
   vlmModelName: env.vlmModelName || '',
+  useResponsesApi: false,
   maxLoopCount: 100,
   loopIntervalInMs: 1000,
-  operator: 'browser',
+  searchEngineForBrowser: SearchEngineForSettings.GOOGLE,
+  operator: Operator.LocalComputer,
   reportStorageBaseUrl: '',
   utioBaseUrl: '',
 };

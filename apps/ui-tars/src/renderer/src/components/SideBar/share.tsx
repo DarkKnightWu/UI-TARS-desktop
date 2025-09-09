@@ -69,7 +69,7 @@ export function ShareOptions({ sessionId }: { sessionId: string }) {
       }, SHARE_TIMEOUT);
 
       const response = await fetch(
-        'https://cdn.jsdelivr.net/npm/@ui-tars/visualizer/dist/report/index.html',
+        'https://lf3-static.bytednsdoc.com/obj/eden-cn/eojfrzeh7vhouloj/ai_labs/ui_tars_desktop/share/v011/index.html',
       );
       const html = await response.text();
 
@@ -80,9 +80,20 @@ export function ShareOptions({ sessionId }: { sessionId: string }) {
         ...restUserData,
         status,
         conversations: chatMessages,
-      } as ComputerUseUserData;
+        modelDetail: {
+          name: settings.vlmModelName,
+          provider: settings.vlmProvider,
+          baseUrl: settings.vlmBaseUrl,
+          maxLoop: settings.maxLoopCount,
+        },
+        // TODO: The core issue lies in `updateSession` execution,
+        // where `restUserData` is not synchronized and still contains data from the previous session.
+        // This requires changes at the foundational level for a proper fix.
+        instruction: lastHumanMessage,
+      } as unknown as ComputerUseUserData;
 
-      console.log('userData', userData);
+      console.log('share sessionId', sessionId);
+      console.log('share info', userData);
 
       const htmlContent = reportHTMLContent(html, [userData]);
 

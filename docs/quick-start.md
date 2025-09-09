@@ -2,13 +2,15 @@
 
 We're excited to announce the support for UI-TARS-1.5! 🎉🎉🎉
 
-The previous version of UI-TARS Desktop version 0.0.8 will be upgraded to a new Desktop App 0.1.0 with support for both Computer and Browser use.
+The previous version of UI-TARS Desktop version 0.0.8 will be upgraded to a new Desktop App 0.1.0 with support for both Computer and Browser operator.
 
 <br />
 
 ## Prerequisites
 
-- Install [Chrome](https://www.google.com/chrome/) for **Browser use**.
+Please install **Chrome** ([stable](https://www.google.com/chrome/)/[beta](https://www.google.com/chrome/beta/)/[dev](https://www.google.com/chrome/dev/)/[canary](https://www.google.com/chrome/canary/)), **Edge** ([stable](https://www.microsoft.com/en-us/edge/download)/[beta/dev/canary](https://www.microsoft.com/en-us/edge/download/insider)), or **Firefox** ([stable](https://www.mozilla.org/en-US/firefox/new/)/[beta/dev/nightly](https://www.mozilla.org/zh-CN/firefox/channel/desktop/)) for **Browser Operator**.
+
+UI-TARS-desktop is currently only available for single monitor setup. Multi-monitor configuration may cause failure for some tasks.
 
 <br />
 
@@ -47,7 +49,18 @@ You can download the [latest release](https://github.com/bytedance/UI-TARS-deskt
 
 <br />
 
-## Get model and run
+
+## Run remote operator
+
+The Remote Operator service will be discontinued on August 20, 2025. If you wish to deploy your own Remote Computer and Browser Agent after the free trial, you can explore Volcano Engine's OS Agent Services.
+
+Deployment Links (in Chinese): [Computer Use Agent](https://console.volcengine.com/vefaas/region:vefaas+cn-beijing/application/create?templateId=680b0a890e881f000862d9f0&channel=github&source=ui-tars) and [Browser Use Agent](https://console.volcengine.com/vefaas/region:vefaas+cn-beijing/application/create?templateId=67f7b4678af5a6000850556c&channel=github&source=ui-tars)
+
+
+<br />
+
+
+## Get model and run local operator
 
 ### UI-TARS-1.5 on [Hugging Face](https://endpoints.huggingface.co/catalog)
 
@@ -65,17 +78,21 @@ You can download the [latest release](https://github.com/bytedance/UI-TARS-deskt
 Language: en
 VLM Provider: Hugging Face for UI-TARS-1.5
 VLM Base URL: https:xxx
-VLM API KEY: hf_xxx
+VLM API KEY: your_api_key
 VLM Model Name: xxx
 ```
 
 > [!NOTE]
-> For VLM Provider, make sure to select "**Hugging Face for UI-TARS-1.5**" to ensure proper VLM Action parsing.
+> 1. For VLM Provider, make sure to select "**Hugging Face for UI-TARS-1.5**" to ensure proper VLM Action parsing.
+> 2. For VLM Base URL & VLM Model Name, you can checkout your huggingface endpoint page to see detail information. Please make sure Base URL ends with '/v1/'
+>
+> <img src="../apps/ui-tars/images/quick_start/base_url.png" width="500px" />
 
-  <img src="../apps/ui-tars/images/quick_start/huggingface_setting.png" width="500px" />
+<img src="../apps/ui-tars/images/quick_start/huggingface_setting.png" width="500px" />
 
-5. Select the desired usage scenario before starting a new chat
-  <img src="../apps/ui-tars/images/quick_start/settings_scene.png" width="500px" />
+5. Click button starting a new chat
+
+  <img src="../apps/ui-tars/images/quick_start/start_button.png" width="500px" />
 
 6. Input the command to start a round of GUI operation tasks!
 
@@ -111,7 +128,7 @@ VLM Model Name: xxx
 Language: cn
 VLM Provider: VolcEngine Ark for Doubao-1.5-UI-TARS
 VLM Base URL: https://ark.cn-beijing.volces.com/api/v3
-VLM API KEY: ARK_API_KEY
+VLM API KEY: YOUR_API_KEY
 VLM Model Name: doubao-1.5-ui-tars-250328
 ```
 
@@ -122,16 +139,18 @@ VLM Model Name: doubao-1.5-ui-tars-250328
 
 
 7. Select the desired usage scenario before starting a new chat
-  <img src="../apps/ui-tars/images/quick_start/settings_scene.png" width="500px" />
+
+  <img src="../apps/ui-tars/images/quick_start/start_button.png" width="500px" />
 
 > [!NOTE]
-> Before using `Browser Use` mode, please ensure that you have a Chromium-supported browser installed on your device.
+> Before using `Browser Operator` mode, please ensure that Chrome, Edge, or Firefox is installed on your device.
 
 8. Input the command to start a round of GUI operation tasks!
 
   <img src="../apps/ui-tars/images/quick_start/start_task.png" width="500px" />
 
 <br>
+
 
 ## More
 

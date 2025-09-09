@@ -119,32 +119,36 @@ export function parseActionVlm(
   text = text.trim();
   if (mode === 'bc') {
     // Parse thought/reflection based on different text patterns
-    if (text.startsWith('Thought:')) {
-      const thoughtMatch = text.match(/Thought: ([\s\S]+?)(?=\s*Action:|$)/);
+    if (text.includes('Thought:')) {
+      const thoughtMatch = text.match(
+        /Thought: ([\s\S]+?)(?=\s*Action[:：]|$)/,
+      );
 
       if (thoughtMatch) {
         thought = thoughtMatch[1].trim();
       }
     } else if (text.startsWith('Reflection:')) {
       const reflectionMatch = text.match(
-        /Reflection: ([\s\S]+?)Action_Summary: ([\s\S]+?)(?=\s*Action:|$)/,
+        /Reflection: ([\s\S]+?)Action_Summary: ([\s\S]+?)(?=\s*Action[:：]|$)/,
       );
       if (reflectionMatch) {
         thought = reflectionMatch[2].trim();
         reflection = reflectionMatch[1].trim();
       }
     } else if (text.startsWith('Action_Summary:')) {
-      const summaryMatch = text.match(/Action_Summary: (.+?)(?=\s*Action:|$)/);
+      const summaryMatch = text.match(
+        /Action_Summary: (.+?)(?=\s*Action[:：]|$)/,
+      );
       if (summaryMatch) {
         thought = summaryMatch[1].trim();
       }
     }
 
-    if (!text.includes('Action:')) {
+    if (!['Action:', 'Action：'].some((keyword) => text.includes(keyword))) {
       //   throw new Error('No Action found in text');
       actionStr = text;
     } else {
-      const actionParts = text.split('Action:');
+      const actionParts = text.split(/Action[:：]/);
       actionStr = actionParts[actionParts.length - 1];
     }
   } else if (mode === 'o1') {
@@ -183,12 +187,6 @@ export function parseActionVlm(
       for (const [paramName, param] of Object.entries(params)) {
         if (!param) continue;
         const trimmedParam = (param as string).trim();
-        actionInputs[
-          paramName.trim() as keyof Omit<
-            ActionInputs,
-            'start_coords' | 'end_coords'
-          >
-        ] = trimmedParam;
 
         if (paramName.includes('start_box') || paramName.includes('end_box')) {
           const oriBox = trimmedParam;
@@ -240,6 +238,13 @@ export function parseActionVlm(
                 ]
               : [];
           }
+        } else {
+          actionInputs[
+            paramName.trim() as keyof Omit<
+              ActionInputs,
+              'start_coords' | 'end_coords'
+            >
+          ] = trimmedParam;
         }
       }
     }
@@ -263,6 +268,13 @@ function parseAction(actionStr: string) {
   try {
     // Support format: click(start_box='<|box_start|>(x1,y1)<|box_end|>')
     actionStr = actionStr.replace(/<\|box_start\|>|<\|box_end\|>/g, '');
+
+    // Support format: click(point='<point>510 150</point>') => click(start_box='<point>510 150</point>')
+    // Support format: drag(start_point='<point>458 328</point>', end_point='<point>350 309</point>') => drag(start_box='<point>458 328</point>', end_box='<point>350 309</point>')
+    actionStr = actionStr
+      .replace(/(?<!start_|end_)point=/g, 'start_box=')
+      .replace(/start_point=/g, 'start_box=')
+      .replace(/end_point=/g, 'end_box=');
 
     // Match function name and arguments using regex
     const functionPattern = /^(\w+)\((.*)\)$/;
@@ -293,6 +305,12 @@ function parseAction(actionStr: string) {
         // Support format: click(start_box='<bbox>637 964 637 964</bbox>')
         if (value.includes('<bbox>')) {
           value = value.replace(/<bbox>|<\/bbox>/g, '').replace(/\s+/g, ',');
+          value = `(${value})`;
+        }
+
+        // Support format: click(point='<point>510 150</point>')
+        if (value.includes('<point>')) {
+          value = value.replace(/<point>|<\/point>/g, '').replace(/\s+/g, ',');
           value = `(${value})`;
         }
 

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 // /apps/ui-tars/src/renderer/src/pages/settings/index.tsx
-import { Trash } from 'lucide-react';
+import { RefreshCcw, Trash } from 'lucide-react';
 import { useRef, useEffect, useState } from 'react';
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,7 +11,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
 import { api } from '@renderer/api';
-import { VLMProviderV2 } from '@main/store/types';
+import { SearchEngineForSettings, VLMProviderV2 } from '@main/store/types';
 import { useSetting } from '@renderer/hooks/useSetting';
 import { Button } from '@renderer/components/ui/button';
 import {
@@ -29,13 +29,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/components/ui/select';
+import { ScrollArea } from '@renderer/components/ui/scroll-area';
 import { Input } from '@renderer/components/ui/input';
 import { DragArea } from '@renderer/components/Common/drag';
+import { BROWSER_OPERATOR } from '@renderer/const';
 
 import { PresetImport } from './PresetImport';
 import { Tabs, TabsList, TabsTrigger } from '@renderer/components/ui/tabs';
-import { ScrollArea } from '@renderer/components/ui/scroll-area';
 import { PresetBanner } from './PresetBanner';
+
+import googleIcon from '@resources/icons/google-color.svg?url';
+import bingIcon from '@resources/icons/bing-color.svg?url';
+import baiduIcon from '@resources/icons/baidu-color.svg?url';
+import { REPO_OWNER, REPO_NAME } from '@main/shared/constants';
 
 // 定义表单验证 schema
 const formSchema = z.object({
@@ -48,6 +54,7 @@ const formSchema = z.object({
   vlmModelName: z.string().min(1),
   maxLoopCount: z.number().min(25).max(200),
   loopIntervalInMs: z.number().min(0).max(3000),
+  searchEngineForBrowser: z.nativeEnum(SearchEngineForSettings),
   reportStorageBaseUrl: z.string().optional(),
   utioBaseUrl: z.string().optional(),
 });
@@ -56,6 +63,7 @@ const SECTIONS = {
   vlm: 'VLM Settings',
   chat: 'Chat Settings',
   report: 'Report Settings',
+  general: 'General',
 } as const;
 
 export default function Settings() {
@@ -64,6 +72,42 @@ export default function Settings() {
   const [isPresetModalOpen, setPresetModalOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('vlm');
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [updateDetail, setUpdateDetail] = useState<{
+    currentVersion: string;
+    version: string;
+    link: string | null;
+  } | null>();
+
+  const handleCheckForUpdates = async () => {
+    setUpdateLoading(true);
+    try {
+      const detail = await api.checkForUpdatesDetail();
+      console.log('detail', detail);
+
+      if (detail.updateInfo) {
+        setUpdateDetail({
+          currentVersion: detail.currentVersion,
+          version: detail.updateInfo.version,
+          link: `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/v${detail.updateInfo.version}`,
+        });
+        return;
+      } else if (!detail.isPackaged) {
+        toast.info('Unpackaged version does not support update check!');
+      } else {
+        toast.success('No update available', {
+          description: `current version: ${detail.currentVersion} is the latest version`,
+          position: 'top-right',
+          richColors: true,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to check for updates:', error);
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
 
   const isRemoteAutoUpdatedPreset =
     settings?.presetSource?.type === 'remote' &&
@@ -81,6 +125,7 @@ export default function Settings() {
       maxLoopCount: 100,
       loopIntervalInMs: 1000,
       reportStorageBaseUrl: '',
+      searchEngineForBrowser: SearchEngineForSettings.GOOGLE,
       utioBaseUrl: '',
       ...settings,
     },
@@ -95,6 +140,7 @@ export default function Settings() {
         vlmModelName: settings.vlmModelName,
         maxLoopCount: settings.maxLoopCount,
         loopIntervalInMs: settings.loopIntervalInMs,
+        searchEngineForBrowser: settings.searchEngineForBrowser,
         reportStorageBaseUrl: settings.reportStorageBaseUrl,
         utioBaseUrl: settings.utioBaseUrl,
       });
@@ -129,12 +175,12 @@ export default function Settings() {
 
     updateSetting(values);
     // toast.success('Settings saved successfully');
-    await api.closeSettingsWindow();
+    // await api.closeSettingsWindow();
     await api.showMainWindow();
   };
 
   const onCancel = async () => {
-    await api.closeSettingsWindow();
+    // await api.closeSettingsWindow();
   };
 
   const handlePresetModal = async (e: React.MouseEvent) => {
@@ -396,8 +442,61 @@ export default function Settings() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="searchEngineForBrowser"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        Search engine for {BROWSER_OPERATOR}:
+                      </FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-[124px]">
+                            <SelectValue placeholder="Select a search engine" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={SearchEngineForSettings.GOOGLE}>
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={googleIcon}
+                                alt="Google"
+                                className="w-4 h-4"
+                              />
+                              <span>Google</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value={SearchEngineForSettings.BING}>
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={bingIcon}
+                                alt="Bing"
+                                className="w-4 h-4"
+                              />
+                              <span>Bing</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value={SearchEngineForSettings.BAIDU}>
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={baiduIcon}
+                                alt="Baidu"
+                                className="w-4 h-4"
+                              />
+                              <span>Baidu</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-
               <div
                 id="report"
                 ref={(el) => {
@@ -444,6 +543,46 @@ export default function Settings() {
                 />
                 <div className="h-50"></div>
               </div>
+
+              <div
+                id="general"
+                ref={(el) => {
+                  sectionRefs.current.general = el;
+                }}
+                className="space-y-6 ml-1 mr-4"
+              >
+                <h2 className="text-lg font-medium">{SECTIONS.general}</h2>
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={updateLoading}
+                  onClick={handleCheckForUpdates}
+                >
+                  <RefreshCcw
+                    className={`h-4 w-4 mr-2 ${updateLoading ? 'animate-spin' : ''}`}
+                  />
+                  {updateLoading ? 'Checking...' : 'Check Updates'}
+                </Button>
+                {updateDetail?.version && (
+                  <div className="text-sm text-gray-500">
+                    {`${updateDetail.currentVersion} -> ${updateDetail.version}(latest)`}
+                  </div>
+                )}
+                {updateDetail?.link && (
+                  <div className="text-sm text-gray-500">
+                    Release Notes:{' '}
+                    <a
+                      href={updateDetail.link}
+                      target="_blank"
+                      className="underline"
+                      rel="noreferrer"
+                    >
+                      {updateDetail.link}
+                    </a>
+                  </div>
+                )}
+                <div className="h-50" />
+              </div>
             </form>
           </Form>
         </ScrollArea>
@@ -475,7 +614,6 @@ export default function Settings() {
         isOpen={isPresetModalOpen}
         onClose={() => setPresetModalOpen(false)}
       />
-      {/* <Toaster /> */}
     </div>
   );
 }

@@ -40,6 +40,7 @@ export function ShareOptions() {
   const { currentSessionId, chatMessages, sessions } = useSession();
   const { settings } = useSetting();
   // const { canSaveRecording, saveRecording } = useScreenRecord();
+  // console.log('settings', settings);
 
   const [isSharing, setIsSharing] = useState(false);
   const [isShareConfirmOpen, setIsShareConfirmOpen] = useState(false);
@@ -78,7 +79,7 @@ export function ShareOptions() {
         // saveRecording();
       } else if (type === 'report') {
         const response = await fetch(
-          'https://cdn.jsdelivr.net/npm/@ui-tars/visualizer/dist/report/index.html',
+          'https://lf3-static.bytednsdoc.com/obj/eden-cn/eojfrzeh7vhouloj/ai_labs/ui_tars_desktop/share/v011/index.html',
         );
         const html = await response.text();
 
@@ -89,7 +90,13 @@ export function ShareOptions() {
           ...restUserData,
           status,
           conversations: chatMessages,
-        } as ComputerUseUserData;
+          modelDetail: {
+            name: settings.vlmModelName,
+            provider: settings.vlmProvider,
+            baseUrl: settings.vlmBaseUrl,
+            maxLoop: settings.maxLoopCount,
+          },
+        } as unknown as ComputerUseUserData;
 
         console.log('restUserData', userData);
 
@@ -190,12 +197,6 @@ export function ShareOptions() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="mr-4">
-            {/* {canSaveRecording && settings.operator === 'nutjs' && (
-              <DropdownMenuItem onClick={() => handleShare('video')}>
-                <Video className="mr-2 h-4 w-4" />
-                Export as Video
-              </DropdownMenuItem>
-            )} */}
             <DropdownMenuItem onClick={() => handleShare('report')}>
               <FileText className="mr-2 h-4 w-4" />
               Export as HTML
